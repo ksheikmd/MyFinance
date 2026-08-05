@@ -195,9 +195,9 @@ function render(){
           <select onchange="setState('txCat',this.value)" style="${inp}">
             ${cats.map(c=>`<option value="${c}" ${c===curCat?"selected":""}>${c}</option>`).join("")}
           </select>
-          <input type="number" min="0" placeholder="Amount (${state.currSym})" value="${state.txAmt}" oninput="setState('txAmt',this.value)" style="${inp}"/>
+          <input type="number" min="0" placeholder="Amount (${state.currSym})" value="${state.txAmt}" oninput="setField('txAmt',this.value)" style="${inp}"/>
           <input type="date" value="${state.txDate}" onchange="setState('txDate',this.value)" style="${inp}"/>
-          <input type="text" placeholder="Note (optional)" value="${state.txNote}" oninput="setState('txNote',this.value)" style="${inp}"/>
+          <input type="text" placeholder="Note (optional)" value="${state.txNote}" oninput="setField('txNote',this.value)" style="${inp}"/>
           <div style="display:flex;gap:8px;align-items:center;">
             <select onchange="setState('txAccount',this.value)" style="${inp};flex:1;">
               <option ${state.txAccount==="Primary"?"selected":""}>Primary</option>
@@ -283,7 +283,7 @@ function render(){
           </div>
           ${bar(pct,g.color,7)}
           <div style="display:flex;gap:8px;margin-top:10px;">
-            <input type="number" min="0" placeholder="Add ${state.currSym}" value="${cv}" oninput="setGoalContrib(${g.id},this.value)" style="${inp};flex:1;padding:8px 10px;"/>
+            <input type="number" min="0" placeholder="Add ${state.currSym}" value="${cv}" oninput="setGoalContrib(${g.id},this.value)" style="${inp};flex:1;padding:8px 10px;" onblur="render()"/>
             <button onclick="addToGoal(${g.id})" style="background:${acc};color:#fff;border:none;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:700;font-family:inherit;">+</button>
             <button onclick="deleteGoal(${g.id})" style="${btnMini()}">✕</button>
           </div>
@@ -292,14 +292,14 @@ function render(){
       ${cardH(`
         ${secLabel("NEW GOAL")}
         <div style="display:flex;flex-direction:column;gap:8px;">
-          <input type="text" placeholder="Goal name" value="${state.gName}" oninput="setState('gName',this.value)" style="${inp}"/>
-          <input type="number" min="0" placeholder="Target (${state.currSym})" value="${state.gTarget}" oninput="setState('gTarget',this.value)" style="${inp}"/>
-          <input type="number" min="0" placeholder="Already saved" value="${state.gSaved}" oninput="setState('gSaved',this.value)" style="${inp}"/>
+          <input type="text" placeholder="Goal name" value="${state.gName}" oninput="setField('gName',this.value)" style="${inp}"/>
+          <input type="number" min="0" placeholder="Target (${state.currSym})" value="${state.gTarget}" oninput="setField('gTarget',this.value)" style="${inp}"/>
+          <input type="number" min="0" placeholder="Already saved" value="${state.gSaved}" oninput="setField('gSaved',this.value)" style="${inp}"/>
           <input type="date" value="${state.gDeadline}" onchange="setState('gDeadline',this.value)" style="${inp}"/>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:${sub};">
             <input type="checkbox" ${state.gChit?"checked":""} onchange="setState('gChit',this.checked)"/> This is a Chit Fund
           </label>
-          ${state.gChit?`<input type="number" min="0" placeholder="Monthly amount" value="${state.gMonthly}" oninput="setState('gMonthly',this.value)" style="${inp}"/>`:""}
+          ${state.gChit?`<input type="number" min="0" placeholder="Monthly amount" value="${state.gMonthly}" oninput="setField('gMonthly',this.value)" style="${inp}"/>`:""}
           <div style="display:flex;gap:6px;">
             ${["#3b82f6","#a855f7","#f59e0b","#22c55e","#ef4444","#ec4899"].map(c=>`
               <div onclick="setState('gColor','${c}')" style="width:22px;height:22px;border-radius:99px;background:${c};cursor:pointer;border:${state.gColor===c?"3px solid #fff":"3px solid transparent"};box-sizing:border-box;"></div>
@@ -348,10 +348,10 @@ function render(){
           `).join("")}
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          <input type="text" placeholder="Name" value="${state.lName}" oninput="setState('lName',this.value)" style="${inp}"/>
-          <input type="number" min="0" placeholder="Amount" value="${state.lAmt}" oninput="setState('lAmt',this.value)" style="${inp}"/>
+          <input type="text" placeholder="Name" value="${state.lName}" oninput="setField('lName',this.value)" style="${inp}"/>
+          <input type="number" min="0" placeholder="Amount" value="${state.lAmt}" oninput="setField('lAmt',this.value)" style="${inp}"/>
           <input type="date" value="${state.lDate}" onchange="setState('lDate',this.value)" style="${inp}"/>
-          <input type="text" placeholder="Note" value="${state.lNote}" oninput="setState('lNote',this.value)" style="${inp}"/>
+          <input type="text" placeholder="Note" value="${state.lNote}" oninput="setField('lNote',this.value)" style="${inp}"/>
           <button onclick="addLedger()" style="${btnFull}">Add</button>
         </div>
       `)}
@@ -375,7 +375,7 @@ function render(){
           ${c.txns.slice(-4).reverse().map(t=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid ${bdr};"><span style="color:${sub};">${t.date} · ${t.note}</span><span style="font-weight:700;color:#f59e0b;">${fmt(t.amount)}</span></div>`).join("")}
           ${c.txns.length===0?`<div style="font-size:12px;color:${sub};margin-bottom:6px;">No transactions yet.</div>`:""}
           <div style="display:flex;gap:8px;margin-top:10px;">
-            <input type="number" min="0" placeholder="Pay amount" value="${pv}" oninput="setCcPay(${c.id},this.value)" style="${inp};flex:1;padding:8px 10px;"/>
+            <input type="number" min="0" placeholder="Pay amount" value="${pv}" oninput="setCcPay(${c.id},this.value)" style="${inp};flex:1;padding:8px 10px;" onblur="render()"/>
             <button onclick="payCc(${c.id})" style="background:${acc};color:#fff;border:none;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:700;font-family:inherit;">Pay</button>
             <button onclick="deleteCc(${c.id})" style="${btnMini()}">✕</button>
           </div>
@@ -384,8 +384,8 @@ function render(){
       ${cardH(`
         ${secLabel("ADD CARD")}
         <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <input type="text" placeholder="Bank name" value="${state.newCardName}" oninput="setState('newCardName',this.value)" style="${inp};flex:1;"/>
-          <input type="number" min="0" placeholder="Limit" value="${state.newCardLimit}" oninput="setState('newCardLimit',this.value)" style="${inp};flex:1;"/>
+          <input type="text" placeholder="Bank name" value="${state.newCardName}" oninput="setField('newCardName',this.value)" style="${inp};flex:1;"/>
+          <input type="number" min="0" placeholder="Limit" value="${state.newCardLimit}" oninput="setField('newCardLimit',this.value)" style="${inp};flex:1;"/>
         </div>
         <button onclick="addCard()" style="${btnFull}">Add Card</button>
       `)}
@@ -509,9 +509,9 @@ function render(){
         ${secLabel("PROFILE")}
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div style="font-size:12px;color:${sub};">App name</div>
-          <input type="text" value="${state.userName}" oninput="setAndPersist('userName',this.value)" style="${inp}"/>
+          <input type="text" value="${state.userName}" oninput="setFieldPersist('userName',this.value)" style="${inp}"/>
           <div style="font-size:12px;color:${sub};">Currency symbol</div>
-          <input type="text" value="${state.currSym}" oninput="setAndPersist('currSym',this.value)" style="${inp};width:80px;"/>
+          <input type="text" value="${state.currSym}" oninput="setFieldPersist('currSym',this.value)" style="${inp};width:80px;"/>
         </div>
       `)}
       ${cardH(`
@@ -539,7 +539,7 @@ function render(){
           </div>
         `).join("")}
         <div style="display:flex;gap:8px;margin-top:8px;">
-          <input type="text" placeholder="New category" value="${state.newExpCat}" oninput="setState('newExpCat',this.value)" style="${inp};flex:1;padding:8px 10px;"/>
+          <input type="text" placeholder="New category" value="${state.newExpCat}" oninput="setField('newExpCat',this.value)" style="${inp};flex:1;padding:8px 10px;"/>
           <button onclick="addCat('exp')" style="background:${acc};color:#fff;border:none;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:700;font-family:inherit;">Add</button>
         </div>
       `)}
@@ -561,7 +561,7 @@ function render(){
           </div>
         `).join("")}
         <div style="display:flex;gap:8px;margin-top:8px;">
-          <input type="text" placeholder="New income type" value="${state.newIncCat}" oninput="setState('newIncCat',this.value)" style="${inp};flex:1;padding:8px 10px;"/>
+          <input type="text" placeholder="New income type" value="${state.newIncCat}" oninput="setField('newIncCat',this.value)" style="${inp};flex:1;padding:8px 10px;"/>
           <button onclick="addCat('inc')" style="background:${acc};color:#fff;border:none;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:700;font-family:inherit;">Add</button>
         </div>
       `)}
@@ -590,8 +590,8 @@ function render(){
       <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:${card};border-top:1px solid ${bdr2};display:flex;z-index:50;box-shadow:0 -2px 16px rgba(0,0,0,.07);padding-bottom:env(safe-area-inset-bottom);">
         ${TABS.map(t=>`
           <button onclick="setTab('${t.id}')" style="flex:1;padding:10px 0 8px;border:none;background:transparent;color:${state.tab===t.id?acc:sub};cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:inherit;min-width:0;">
-            <span style="font-size:20px;line-height:1;">${t.icon}</span>
-            <span style="font-size:9px;font-weight:${state.tab===t.id?700:500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${t.id}</span>
+            <span style="font-size:26px;line-height:1;">${t.icon}</span>
+            <span style="font-size:10px;font-weight:${state.tab===t.id?700:500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${t.id}</span>
           </button>
         `).join("")}
       </div>
@@ -601,14 +601,16 @@ function render(){
 
 // ─── ACTIONS ─────────────────────────────────────────────────
 function setState(k,v){ state[k]=v; render(); }
+function setField(k,v){ state[k]=v; } // update state without re-rendering (for text/number inputs)
 function setAndPersist(k,v){ state[k]=v; S.set(k,v); render(); }
+function setFieldPersist(k,v){ state[k]=v; S.set(k,v); } // persist without re-rendering
 function setTab(t){ state.tab=t; render(); }
 function toggleDark(){ state.dark=!state.dark; S.set("dark",state.dark); render(); }
 function setTxType(t){ state.txType=t; state.txCat=""; render(); }
-function setBudget(cat,val){ state.budgets[cat]=parseFloat(val)||0; S.set("budgets",state.budgets); render(); }
-function setZakat(k,v){ state.zakat[k]=parseFloat(v)||0; S.set("zakat",state.zakat); render(); }
-function setGoalContrib(id,v){ state.goalContribs[id]=v; render(); }
-function setCcPay(id,v){ state.ccPays[id]=v; render(); }
+function setBudget(cat,val){ state.budgets[cat]=parseFloat(val)||0; S.set("budgets",state.budgets); }
+function setZakat(k,v){ state.zakat[k]=parseFloat(v)||0; S.set("zakat",state.zakat); }
+function setGoalContrib(id,v){ state.goalContribs[id]=v; }
+function setCcPay(id,v){ state.ccPays[id]=v; }
 function startEdit(type,idx,val){ state.editCat={type,idx,val}; render(); }
 function setEditVal(v){ if(state.editCat) state.editCat.val=v; }
 function confirmRename(){
