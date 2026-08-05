@@ -575,7 +575,7 @@ function render(){
 
   // ── FULL LAYOUT ──────────────────────────────────────────
   document.getElementById("app").innerHTML = `
-    <div style="background:${bg};color:${text};min-height:100vh;max-width:430px;margin:0 auto;padding-bottom:72px;font-family:'Inter',system-ui,sans-serif;">
+    <div style="background:${bg};color:${text};min-height:100vh;max-width:430px;margin:0 auto;padding-bottom:85px;font-family:'Inter',system-ui,sans-serif;">
       <!-- HEADER -->
       <div style="background:${d?"#1e293b":acc};padding:15px 18px 11px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50;">
         <div>
@@ -587,11 +587,11 @@ function render(){
       <!-- CONTENT -->
       <div style="padding:12px 14px 0;" class="fade-in">${content}</div>
       <!-- BOTTOM NAV -->
-      <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:${card};border-top:1px solid ${bdr2};display:flex;z-index:50;box-shadow:0 -2px 16px rgba(0,0,0,.07);">
+      <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:${card};border-top:1px solid ${bdr2};display:flex;z-index:50;box-shadow:0 -2px 16px rgba(0,0,0,.07);padding-bottom:env(safe-area-inset-bottom);">
         ${TABS.map(t=>`
-          <button onclick="setTab('${t.id}')" style="flex:1;padding:7px 0 5px;border:none;background:transparent;color:${state.tab===t.id?acc:sub};cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;font-family:inherit;">
-            <span style="font-size:15px;">${t.icon}</span>
-            <span style="font-size:8px;font-weight:${state.tab===t.id?700:400};">${t.id}</span>
+          <button onclick="setTab('${t.id}')" style="flex:1;padding:10px 0 8px;border:none;background:transparent;color:${state.tab===t.id?acc:sub};cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:inherit;min-width:0;">
+            <span style="font-size:20px;line-height:1;">${t.icon}</span>
+            <span style="font-size:9px;font-weight:${state.tab===t.id?700:500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${t.id}</span>
           </button>
         `).join("")}
       </div>
