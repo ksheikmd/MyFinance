@@ -35,6 +35,9 @@ const DEF_EXP = ["Grocery","Food Outside","Fuel","EB (Electricity)","LPG","Bills
 const DEF_INC = ["Salary","Gift","LPG Subsidy","Interest","Others"];
 const ACCENT_COLORS = ["#6366f1","#3b82f6","#a855f7","#f59e0b","#22c55e","#ef4444","#ec4899","#14b8a6","#f97316","#0ea5e9"];
 const TABS = [{id:"Home",icon:"🏠"},{id:"Add",icon:"➕"},{id:"Budget",icon:"📋"},{id:"Savings",icon:"🎯"},{id:"Ledger",icon:"📒"},{id:"Cards",icon:"💳"},{id:"Zakat",icon:"🌙"},{id:"Reports",icon:"📊"},{id:"Settings",icon:"⚙️"}];
+const PRIMARY_TABS  = TABS.filter(t=>["Home","Add","Budget","Reports"].includes(t.id));
+const MORE_TABS     = TABS.filter(t=>["Savings","Ledger","Cards","Zakat","Settings"].includes(t.id));
+const MORE_TAB_IDS  = MORE_TABS.map(t=>t.id);
 
 // ─── STATE ───────────────────────────────────────────────────
 let state = {
@@ -68,6 +71,11 @@ let state = {
   editCat:null, // {type,idx,val}
   goalContribs:{},
   ccPays:{},
+  showMore:   false,
+  editTxnId:  null,
+  editTxn:    {},
+  editCardId: null,
+  editCard:   {},
 };
 
 function persist(keys){
@@ -183,7 +191,13 @@ function render(){
   }
 
   else if(state.tab==="Add"){
-    const cats = state.txType==="income"?state.incCats:state.expCats;
+    const rawCats = state.txType==="income"?state.incCats:state.expCats;
+    const catUsage = {};
+    state.txns.filter(t=>t.type===state.txType).forEach(t=>{ catUsage[t.cat]=(catUsage[t.cat]||0)+1; });
+    const cats = [...rawCats].sort((a,b)=>{
+      const diff=(catUsage[b]||0)-(catUsage[a]||0);
+      return diff!==0?diff:a.localeCompare(b);
+    });
     const curCat = state.txCat||cats[0]||"";
     content = `
       ${cardH(`
@@ -229,7 +243,7 @@ function render(){
               <span style="font-weight:800;font-size:14px;color:${t.type==="income"?"#22c55e":"#ef4444"};">
                 ${t.type==="income"?"+":"-"}${fmt(t.amount)}
               </span>
-              <button onclick="deleteTxn(${t.id})" style="${btnMini()}">✕</button>
+              <button onclick="openEditTxn(${t.id})" style="${btnMini(acc)}">✏️</button>
             </div>
           </div>
         </div>
@@ -366,19 +380,34 @@ function render(){
         const out=Math.max(0,spent-paid);
         const pct=c.limit?Math.round(out/c.limit*100):0;
         const pv=state.ccPays[c.id]||"";
+        const isEditingCard = state.editCardId===c.id;
         return cardH(`
-          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-            <div style="font-weight:700;font-size:14px;">💳 ${c.name}</div>
-            ${chip(out>0?`Due ${fmt(out)}`:"Cleared ✅",out>0?"#f59e0b":"#22c55e")}
-          </div>
-          ${c.limit>0?`${bar(pct,"#f59e0b",6)}<div style="font-size:11px;color:${sub};margin-top:2px;margin-bottom:8px;">${fmt(out)} of ${fmt(c.limit)} (${pct}%)</div>`:""}
-          ${c.txns.slice(-4).reverse().map(t=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid ${bdr};"><span style="color:${sub};">${t.date} · ${t.note}</span><span style="font-weight:700;color:#f59e0b;">${fmt(t.amount)}</span></div>`).join("")}
-          ${c.txns.length===0?`<div style="font-size:12px;color:${sub};margin-bottom:6px;">No transactions yet.</div>`:""}
-          <div style="display:flex;gap:8px;margin-top:10px;">
-            <input type="number" min="0" placeholder="Pay amount" value="${pv}" oninput="setCcPay(${c.id},this.value)" style="${inp};flex:1;padding:8px 10px;" onblur="render()"/>
-            <button onclick="payCc(${c.id})" style="background:${acc};color:#fff;border:none;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:700;font-family:inherit;">Pay</button>
-            <button onclick="deleteCc(${c.id})" style="${btnMini()}">✕</button>
-          </div>
+          ${isEditingCard?`
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+              <input type="text" placeholder="Card name" value="${state.editCard.name||''}" oninput="setEditCardFieldSilent('name',this.value)" style="${inp}"/>
+              <input type="number" min="0" placeholder="Credit limit" value="${state.editCard.limit||''}" oninput="setEditCardFieldSilent('limit',this.value)" style="${inp}"/>
+              <div style="display:flex;gap:8px;">
+                <button onclick="saveEditCard()" style="${btnFull}">Save</button>
+                <button onclick="cancelEditCard()" style="flex:1;padding:11px 0;border:none;border-radius:10px;background:${bdr2};color:${sub};font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;">Cancel</button>
+              </div>
+            </div>
+          `:`
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <div style="font-weight:700;font-size:14px;">💳 ${c.name}</div>
+              <div style="display:flex;gap:6px;align-items:center;">
+                ${chip(out>0?`Due ${fmt(out)}`:"Cleared ✅",out>0?"#f59e0b":"#22c55e")}
+                <button onclick="openEditCard(${c.id})" style="${btnMini(acc)};padding:4px 8px;">✏️</button>
+              </div>
+            </div>
+            ${c.limit>0?`${bar(pct,"#f59e0b",6)}<div style="font-size:11px;color:${sub};margin-top:2px;margin-bottom:8px;">${fmt(out)} of ${fmt(c.limit)} (${pct}%)</div>`:""}
+            ${c.txns.slice(-4).reverse().map(t=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid ${bdr};"><span style="color:${sub};">${t.date} · ${t.note}</span><span style="font-weight:700;color:#f59e0b;">${fmt(t.amount)}</span></div>`).join("")}
+            ${c.txns.length===0?`<div style="font-size:12px;color:${sub};margin-bottom:6px;">No transactions yet.</div>`:""}
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <input type="number" min="0" placeholder="Pay amount" value="${pv}" oninput="setCcPay(${c.id},this.value)" style="${inp};flex:1;padding:8px 10px;" onblur="render()"/>
+              <button onclick="payCc(${c.id})" style="background:${acc};color:#fff;border:none;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:700;font-family:inherit;">Pay</button>
+              <button onclick="deleteCc(${c.id})" style="${btnMini()}">✕</button>
+            </div>
+          `}
         `);
       }).join("")}
       ${cardH(`
@@ -588,13 +617,60 @@ function render(){
       <div style="padding:12px 14px 0;" class="fade-in">${content}</div>
       <!-- BOTTOM NAV -->
       <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:${card};border-top:1px solid ${bdr2};display:flex;z-index:50;box-shadow:0 -2px 16px rgba(0,0,0,.07);padding-bottom:env(safe-area-inset-bottom);">
-        ${TABS.map(t=>`
-          <button onclick="setTab('${t.id}')" style="flex:1;padding:10px 0 8px;border:none;background:transparent;color:${state.tab===t.id?acc:sub};cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:inherit;min-width:0;">
+        ${PRIMARY_TABS.map(t=>`
+          <button onclick="setTab('${t.id}')" style="flex:1;padding:10px 0 8px;border:none;background:transparent;color:${state.tab===t.id?acc:sub};cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:inherit;min-width:0;">
             <span style="font-size:26px;line-height:1;">${t.icon}</span>
-            <span style="font-size:10px;font-weight:${state.tab===t.id?700:500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${t.id}</span>
+            <span style="font-size:10px;font-weight:${state.tab===t.id?700:500};">${t.id}</span>
           </button>
         `).join("")}
+        <button onclick="toggleMore()" style="flex:1;padding:10px 0 8px;border:none;background:transparent;color:${MORE_TAB_IDS.includes(state.tab)||state.showMore?acc:sub};cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:inherit;min-width:0;">
+          <span style="font-size:26px;line-height:1;">⋯</span>
+          <span style="font-size:10px;font-weight:${MORE_TAB_IDS.includes(state.tab)||state.showMore?700:500};">More</span>
+        </button>
       </div>
+      <!-- MORE SHEET -->
+      ${state.showMore?`
+        <div onclick="toggleMore()" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;"></div>
+        <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:${card};border-radius:20px 20px 0 0;z-index:61;padding:16px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 30px rgba(0,0,0,.15);">
+          <div style="width:36px;height:4px;background:${bdr2};border-radius:99px;margin:0 auto 16px;"></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+            ${MORE_TABS.map(t=>`
+              <button onclick="setTab('${t.id}')" style="border:none;background:${state.tab===t.id?acc+"18":d?"#0f172a":"#f8fafc"};border-radius:14px;padding:12px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;font-family:inherit;border:1.5px solid ${state.tab===t.id?acc:bdr2};">
+                <span style="font-size:26px;line-height:1;">${t.icon}</span>
+                <span style="font-size:10px;font-weight:${state.tab===t.id?700:500};color:${state.tab===t.id?acc:text};">${t.id}</span>
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      `:""}
+      <!-- EDIT TXN MODAL -->
+      ${state.editTxnId?`
+        <div onclick="cancelEditTxn()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:70;"></div>
+        <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:400px;background:${card};border-radius:18px;z-index:71;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,.2);max-height:85vh;overflow-y:auto;">
+          <div style="font-weight:800;font-size:16px;margin-bottom:14px;">Edit Transaction</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;gap:8px;">
+              <button onclick="setEditTxnField('type','expense')" style="flex:1;padding:9px 0;border:2px solid ${state.editTxn.type==='expense'?acc:bdr2};border-radius:10px;background:${state.editTxn.type==='expense'?acc+'18':'transparent'};color:${state.editTxn.type==='expense'?acc:sub};font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;">📉 Expense</button>
+              <button onclick="setEditTxnField('type','income')" style="flex:1;padding:9px 0;border:2px solid ${state.editTxn.type==='income'?acc:bdr2};border-radius:10px;background:${state.editTxn.type==='income'?acc+'18':'transparent'};color:${state.editTxn.type==='income'?acc:sub};font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;">📈 Income</button>
+            </div>
+            <select onchange="setEditTxnField('cat',this.value)" style="${inp}">
+              ${(state.editTxn.type==='income'?state.incCats:state.expCats).map(c=>`<option value="${c}" ${c===state.editTxn.cat?'selected':''}>${c}</option>`).join('')}
+            </select>
+            <input type="number" min="0" placeholder="Amount" value="${state.editTxn.amount||''}" oninput="setEditTxnFieldSilent('amount',this.value)" style="${inp}"/>
+            <input type="date" value="${state.editTxn.date||''}" onchange="setEditTxnField('date',this.value)" style="${inp}"/>
+            <input type="text" placeholder="Note" value="${state.editTxn.note||''}" oninput="setEditTxnFieldSilent('note',this.value)" style="${inp}"/>
+            <select onchange="setEditTxnField('account',this.value)" style="${inp}">
+              <option value="Primary" ${(state.editTxn.account||'Primary')==='Primary'?'selected':''}>Primary</option>
+              <option value="Secondary" ${state.editTxn.account==='Secondary'?'selected':''}>Secondary</option>
+            </select>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+              <button onclick="saveEditTxn()" style="${btnFull}">Save</button>
+              <button onclick="deleteTxn(${state.editTxnId})" style="flex:1;padding:11px 0;border:none;border-radius:10px;background:#ef44441a;color:#ef4444;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;">Delete</button>
+            </div>
+            <button onclick="cancelEditTxn()" style="padding:10px 0;border:none;background:transparent;color:${sub};font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
+          </div>
+        </div>
+      `:""}
     </div>
   `;
 }
@@ -604,8 +680,32 @@ function setState(k,v){ state[k]=v; render(); }
 function setField(k,v){ state[k]=v; } // update state without re-rendering (for text/number inputs)
 function setAndPersist(k,v){ state[k]=v; S.set(k,v); render(); }
 function setFieldPersist(k,v){ state[k]=v; S.set(k,v); } // persist without re-rendering
-function setTab(t){ state.tab=t; render(); }
+function setTab(t){ state.tab=t; state.showMore=false; render(); }
+function toggleMore(){ state.showMore=!state.showMore; render(); }
 function toggleDark(){ state.dark=!state.dark; S.set("dark",state.dark); render(); }
+function openEditTxn(id){
+  const t=state.txns.find(x=>x.id===id);
+  if(!t) return;
+  state.editTxnId=id;
+  state.editTxn={...t};
+  render();
+}
+function setEditTxnField(k,v){ state.editTxn[k]=v; render(); }
+function setEditTxnFieldSilent(k,v){ state.editTxn[k]=v; }
+function saveEditTxn(){
+  const e=state.editTxn;
+  const amt=parseFloat(e.amount);
+  if(!amt||amt<=0) return;
+  state.txns=state.txns.map(t=>t.id===state.editTxnId?{...t,type:e.type,cat:e.cat,amount:amt,date:e.date,note:e.note}:t);
+  S.set("txns",state.txns);
+  state.editTxnId=null; state.editTxn={};
+  render();
+}
+function cancelEditTxn(){ state.editTxnId=null; state.editTxn={}; render(); }
+function openEditCard(id){ const c=state.ccCards.find(x=>x.id===id); if(!c)return; state.editCardId=id; state.editCard={name:c.name,limit:c.limit}; render(); }
+function setEditCardFieldSilent(k,v){ state.editCard[k]=v; }
+function saveEditCard(){ state.ccCards=state.ccCards.map(c=>c.id===state.editCardId?{...c,name:state.editCard.name||c.name,limit:parseFloat(state.editCard.limit)||0}:c); S.set("ccCards",state.ccCards); state.editCardId=null; state.editCard={}; render(); }
+function cancelEditCard(){ state.editCardId=null; state.editCard={}; render(); }
 function setTxType(t){ state.txType=t; state.txCat=""; render(); }
 function setBudget(cat,val){ state.budgets[cat]=parseFloat(val)||0; S.set("budgets",state.budgets); }
 function setZakat(k,v){ state.zakat[k]=parseFloat(v)||0; S.set("zakat",state.zakat); }
@@ -653,10 +753,10 @@ function addTxn(){
   if(t.cc){ const card=state.ccCards.find(c=>c.name===state.txCCName); if(card) card.txns.push({id:Date.now()+1,amount:amt,date:state.txDate,note:cat+(state.txNote?" · "+state.txNote:"")}); S.set("ccCards",state.ccCards); }
   if(cat==="Interest"&&state.txType==="income"){ const half=new Date(state.txDate).getMonth()<6?"H1":"H2"; state.interest.push({id:Date.now()+2,bank:state.txNote||"Bank",amount:amt,date:state.txDate,halfYear:`${half}-${state.txDate.slice(0,4)}`,paid:false}); S.set("interest",state.interest); }
   S.set("txns",state.txns);
-  state.txAmt=""; state.txNote=""; state.txCC=false;
+  state.txAmt=""; state.txNote=""; state.txCC=false; state.txAccount="Primary";
   render();
 }
-function deleteTxn(id){ state.txns=state.txns.filter(t=>t.id!==id); S.set("txns",state.txns); render(); }
+function deleteTxn(id){ state.txns=state.txns.filter(t=>t.id!==id); S.set("txns",state.txns); state.editTxnId=null; state.editTxn={}; render(); }
 function addGoal(){
   if(!state.gName||!state.gTarget) return;
   state.goals.push({id:Date.now(),name:state.gName,target:parseFloat(state.gTarget),saved:parseFloat(state.gSaved||0),deadline:state.gDeadline,color:state.gColor,isChit:state.gChit,monthlyAmt:parseFloat(state.gMonthly||0)});
