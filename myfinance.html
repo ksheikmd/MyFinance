@@ -507,87 +507,169 @@ function render(){
   }
 
   else if(state.tab==="Reports"){
-    const rMonths = [...new Set(state.txns.map(t=>getMonth(t.date)))].sort().reverse();
-    const selRM = state.reportMonth || (rMonths[0]||D.cur);
-    const rTxns = state.txns.filter(t=>getMonth(t.date)===selRM);
-    const rInc  = rTxns.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0);
-    const rExp  = rTxns.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
-    const rNet  = rInc-rExp;
+    const CCOLS=["#6366f1","#f59e0b","#22c55e","#ef4444","#3b82f6","#a855f7","#ec4899","#14b8a6","#f97316","#0ea5e9","#84cc16","#e11d48","#8b5cf6","#06b6d4"];
+    const rMonths=[...new Set(state.txns.map(t=>getMonth(t.date)))].sort().reverse();
+    const selRM=state.reportMonth||(rMonths[0]||D.cur);
+    const rTxns=state.txns.filter(t=>getMonth(t.date)===selRM);
+    const rInc=rTxns.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0);
+    const rExp=rTxns.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+    const rNet=rInc-rExp;
     const rSpend={};
-    rTxns.filter(t=>t.type==="expense").forEach(t=>{ rSpend[t.cat]=(rSpend[t.cat]||0)+t.amount; });
-    content = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;padding:0 2px;">
-        ${secLabel("MONTHLY REPORT")}
-        <select onchange="setState('reportMonth',this.value)" style="${inpSm};width:auto;padding-right:28px;">
-          ${rMonths.map(m=>`<option value="${m}" ${m===selRM?"selected":""}>${monthLabel(m)}</option>`).join("")}
-        </select>
+    rTxns.filter(t=>t.type==="expense").forEach(t=>{rSpend[t.cat]=(rSpend[t.cat]||0)+t.amount;});
+    const spendArr=Object.entries(rSpend).sort((a,b)=>b[1]-a[1]);
+    const catCol={};spendArr.forEach(([c],i)=>{catCol[c]=CCOLS[i%CCOLS.length];});
+    const saveRate=rInc>0?Math.round(rNet/rInc*100):0;
+
+    // ── Donut chart SVG ──
+    const DR=58,DCX=80,DCY=80,DSZ=160,DSW=22,DC=2*Math.PI*DR;
+    let donutSegs="",cum=0;
+    if(spendArr.length===0){
+      donutSegs=`<circle cx="${DCX}" cy="${DCY}" r="${DR}" fill="none" stroke="#88888828" stroke-width="${DSW}"/>`;
+    } else {
+      spendArr.forEach(([cat,amt],i)=>{
+        const f=amt/rExp; const dash=f*DC; const offset=DC*(0.25-cum);
+        donutSegs+=`<circle cx="${DCX}" cy="${DCY}" r="${DR}" fill="none" stroke="${CCOLS[i%CCOLS.length]}" stroke-width="${DSW}" stroke-dasharray="${dash.toFixed(2)} ${(DC-dash).toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}" stroke-linecap="butt"/>`;
+        cum+=f;
+      });
+    }
+    const donutSVG=`<svg width="${DSZ}" height="${DSZ}" viewBox="0 0 ${DSZ} ${DSZ}">
+      <circle cx="${DCX}" cy="${DCY}" r="${DR}" fill="none" stroke="#88888815" stroke-width="${DSW}"/>
+      ${donutSegs}
+      <text x="${DCX}" y="${DCY-8}" text-anchor="middle" font-size="11" fill="${sub}" font-family="system-ui">Total Spent</text>
+      <text x="${DCX}" y="${DCY+10}" text-anchor="middle" font-size="14" fill="${text}" font-weight="bold" font-family="system-ui">${state.currSym}${rExp>=1000?(rExp>=100000?(rExp/100000).toFixed(1)+"L":(rExp/1000).toFixed(1)+"K"):Math.round(rExp)}</text>
+    </svg>`;
+
+    // ── Monthly trend bar chart SVG (last 6 months) ──
+    const trendMs=Object.keys(D.allMonths).sort().reverse().slice(0,6).reverse();
+    const maxV=Math.max(...trendMs.map(m=>Math.max(D.allMonths[m].income,D.allMonths[m].expense)),1);
+    const BW=18,BG=6,CH=64,GRP=BW*2+BG+10;
+    const trendW=trendMs.length*GRP+10;
+    const trendBars=trendMs.map((m,i)=>{
+      const md=D.allMonths[m]; const iH=Math.round((md.income/maxV)*CH); const eH=Math.round((md.expense/maxV)*CH);
+      const x=i*GRP+5; const lbl=monthLabel(m).slice(0,3);
+      return `<rect x="${x}" y="${CH-iH}" width="${BW}" height="${Math.max(iH,2)}" rx="3" fill="#22c55e" opacity="0.85"/>
+        <rect x="${x+BW+BG}" y="${CH-eH}" width="${BW}" height="${Math.max(eH,2)}" rx="3" fill="#ef4444" opacity="0.85"/>
+        <text x="${x+BW}" y="${CH+13}" text-anchor="middle" font-size="8" fill="${sub}" font-family="system-ui">${lbl}</text>`;
+    }).join("");
+
+    content=`
+      <!-- Month pill selector -->
+      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+        ${rMonths.map(m=>`<button onclick="setState('reportMonth','${m}')" style="flex-shrink:0;padding:6px 14px;border-radius:99px;border:none;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;background:${m===selRM?acc:"#88888818"};color:${m===selRM?"#fff":sub};">${monthLabel(m)}</button>`).join("")}
       </div>
+
+      <!-- Summary hero card -->
       ${cardH(`
-        <div style="display:flex;gap:10px;margin-bottom:12px;">
-          <div style="flex:1;text-align:center;"><div style="font-size:10px;color:${sub};">Income</div><div style="font-weight:800;color:#22c55e;font-size:15px;">${fmt(rInc)}</div></div>
-          <div style="flex:1;text-align:center;"><div style="font-size:10px;color:${sub};">Expenses</div><div style="font-weight:800;color:#ef4444;font-size:15px;">${fmt(rExp)}</div></div>
-          <div style="flex:1;text-align:center;"><div style="font-size:10px;color:${sub};">Net</div><div style="font-weight:800;color:${rNet>=0?"#22c55e":"#ef4444"};font-size:15px;">${fmt(rNet)}</div></div>
-        </div>
-        ${secLabel("INSIGHTS")}
-        <div style="font-size:13px;line-height:2;">
-          ${rInc===0&&rExp===0?`<div style="color:${sub};">No transactions for this month.</div>`:""}
-          ${rInc===0&&rExp>0?`<div style="color:${sub};">📌 No income logged this month.</div>`:""}
-          ${rInc>0&&rExp<=rInc?`<div style="color:#22c55e;">✅ Saved ${fmt(rNet)} (${Math.round(rNet/rInc*100)}% of income).</div>`:""}
-          ${rInc>0&&rExp>rInc?`<div style="color:#ef4444;">⚠️ Spent ${fmt(rExp-rInc)} more than earned.</div>`:""}
-          ${Object.entries(state.budgets).filter(([c,l])=>l>0&&(rSpend[c]||0)>l).map(([c])=>`<div style="color:#f59e0b;">⚠️ ${c} over budget.</div>`).join("")}
-          ${selRM===D.cur&&D.ccDue>0?`<div style="color:#f59e0b;">💳 ${fmt(D.ccDue)} CC outstanding.</div>`:""}
-          ${selRM===D.cur&&D.toReceive>0?`<div style="color:#3b82f6;">💰 ${fmt(D.toReceive)} to receive.</div>`:""}
-          ${selRM===D.cur&&D.toPay>0?`<div style="color:#a855f7;">🔴 ${fmt(D.toPay)} to pay.</div>`:""}
-          ${selRM===D.cur&&state.interest.filter(i=>!i.paid).length>0?`<div style="color:#22c55e;">🏦 Unpaid interest — check Cards tab.</div>`:""}
-        </div>
-      `)}
-      ${cardH(`
-        ${secLabel("BUDGET vs ACTUAL")}
-        ${Object.entries(state.budgets).filter(([,l])=>l>0).map(([cat,limit])=>{
-          const spent=rSpend[cat]||0;
-          const pct=Math.round(spent/limit*100);
-          return `<div style="margin-bottom:10px;">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">
-              <span style="font-weight:600;">${cat}</span>
-              <span style="color:${pct>100?"#ef4444":"#22c55e"};font-weight:700;">${pct>100?`+${fmt(spent-limit)} over`:`${fmt(limit-spent)} left`}</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="flex-shrink:0;">${donutSVG}</div>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.5px;opacity:.45;text-transform:uppercase;margin-bottom:10px;">${monthLabel(selRM)}</div>
+            <div style="margin-bottom:8px;">
+              <div style="font-size:10px;color:${sub};">Income</div>
+              <div style="font-size:18px;font-weight:800;color:#22c55e;">${fmt(rInc)}</div>
             </div>
-            ${bar(pct,"",5)}
-            <div style="font-size:10px;color:${sub};margin-top:1px;">Spent ${fmt(spent)} of ${fmt(limit)}</div>
-          </div>`;
-        }).join("")}
-        ${Object.keys(state.budgets).filter(k=>state.budgets[k]>0).length===0?`<div style="font-size:12px;color:${sub};">Set limits in Budget tab first.</div>`:""}
+            <div style="margin-bottom:8px;">
+              <div style="font-size:10px;color:${sub};">Expenses</div>
+              <div style="font-size:18px;font-weight:800;color:#ef4444;">${fmt(rExp)}</div>
+            </div>
+            <div style="padding:8px 10px;border-radius:10px;background:${rNet>=0?"#22c55e18":"#ef444418"};">
+              <div style="font-size:10px;color:${sub};">Saved</div>
+              <div style="font-size:16px;font-weight:800;color:${rNet>=0?"#22c55e":"#ef4444"};">${fmt(Math.abs(rNet))} ${rNet<0?"deficit":""}</div>
+              ${rInc>0?`<div style="font-size:10px;color:${rNet>=0?"#22c55e":"#ef4444"};margin-top:2px;font-weight:700;">${saveRate>=0?saveRate+"% of income":"spent more than earned"}</div>`:""}
+            </div>
+          </div>
+        </div>
       `)}
-      ${cardH(`
-        ${secLabel("SPENDING BREAKDOWN")}
-        ${Object.entries(rSpend).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>{
+
+      <!-- Spending by category with colour dots -->
+      ${spendArr.length>0?cardH(`
+        ${secLabel("WHERE DID THE MONEY GO?")}
+        ${spendArr.map(([cat,amt],i)=>{
           const pct=rExp>0?Math.round(amt/rExp*100):0;
-          return `<div style="margin-bottom:8px;">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">
-              <span style="font-weight:600;">${cat}</span>
-              <span style="color:${text};font-weight:700;">${fmt(amt)} <span style="color:${sub};font-weight:400;">(${pct}%)</span></span>
+          const col=CCOLS[i%CCOLS.length];
+          return `<div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+              <div style="display:flex;align-items:center;gap:7px;">
+                <div style="width:10px;height:10px;border-radius:99px;background:${col};flex-shrink:0;"></div>
+                <span style="font-size:13px;font-weight:600;">${cat}</span>
+              </div>
+              <div style="text-align:right;">
+                <span style="font-size:13px;font-weight:800;">${fmt(amt)}</span>
+                <span style="font-size:11px;color:${sub};margin-left:4px;">${pct}%</span>
+              </div>
             </div>
-            ${bar(pct,"",4)}
+            <div style="background:#88888815;border-radius:99px;height:5px;overflow:hidden;"><div style="width:${pct}%;background:${col};height:100%;border-radius:99px;"></div></div>
           </div>`;
         }).join("")}
-        ${Object.keys(rSpend).length===0?`<div style="font-size:12px;color:${sub};">No expenses for this month.</div>`:""}
-      `)}
+      `):`<div style="border-radius:14px;padding:14px 16px;margin-bottom:12px;background:${card};text-align:center;color:${sub};font-size:13px;">No expenses for ${monthLabel(selRM)}.</div>`}
+
+      <!-- Budget vs Actual -->
+      ${Object.keys(state.budgets).filter(k=>state.budgets[k]>0).length>0?cardH(`
+        ${secLabel("BUDGET STATUS")}
+        ${Object.entries(state.budgets).filter(([,l])=>l>0).map(([cat,limit])=>{
+          const spent=rSpend[cat]||0; const pct=Math.round(spent/limit*100);
+          const col=pct>100?"#ef4444":pct>80?"#f59e0b":"#22c55e";
+          return `<div style="margin-bottom:11px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+              <span style="font-size:12px;font-weight:600;">${cat}</span>
+              <span style="font-size:11px;font-weight:700;color:${col};">${pct>100?`⚠️ ${fmt(spent-limit)} over`:pct>80?`🔶 ${fmt(limit-spent)} left`:`✅ ${fmt(limit-spent)} left`}</span>
+            </div>
+            <div style="background:#88888815;border-radius:99px;height:6px;overflow:hidden;">
+              <div style="width:${Math.min(pct,100)}%;background:${col};height:100%;border-radius:99px;transition:width .3s;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:${sub};margin-top:2px;">
+              <span>Spent ${fmt(spent)}</span><span>Limit ${fmt(limit)}</span>
+            </div>
+          </div>`;
+        }).join("")}
+      `):""}
+
+      <!-- 6-month income vs expense trend -->
+      ${trendMs.length>1?cardH(`
+        ${secLabel("6-MONTH TREND")}
+        <div style="display:flex;gap:10px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:${sub};"><div style="width:10px;height:10px;border-radius:3px;background:#22c55e;"></div>Income</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:${sub};"><div style="width:10px;height:10px;border-radius:3px;background:#ef4444;"></div>Expenses</div>
+        </div>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+          <svg width="${trendW}" height="${CH+20}" viewBox="0 0 ${trendW} ${CH+20}">
+            ${trendBars}
+          </svg>
+        </div>
+      `):""}
+
+      <!-- Alerts & insights -->
       ${cardH(`
-        ${secLabel("ALL MONTHS SUMMARY")}
+        ${secLabel("INSIGHTS")}
+        <div style="display:flex;flex-direction:column;gap:7px;font-size:13px;">
+          ${rInc===0&&rExp===0?`<div style="color:${sub};">No transactions recorded for ${monthLabel(selRM)}.</div>`:""}
+          ${rInc>0&&saveRate>=20?`<div style="background:#22c55e18;border-radius:10px;padding:8px 10px;color:#22c55e;font-weight:600;">🎉 Great! Saved ${saveRate}% of income this month.</div>`:""}
+          ${rInc>0&&saveRate>=0&&saveRate<20?`<div style="background:#f59e0b18;border-radius:10px;padding:8px 10px;color:#f59e0b;font-weight:600;">💡 Saved ${saveRate}% — try to reach 20%.</div>`:""}
+          ${rInc>0&&rExp>rInc?`<div style="background:#ef444418;border-radius:10px;padding:8px 10px;color:#ef4444;font-weight:600;">⚠️ Overspent by ${fmt(rExp-rInc)} this month.</div>`:""}
+          ${Object.entries(state.budgets).filter(([c,l])=>l>0&&(rSpend[c]||0)>l).map(([c,l])=>`<div style="background:#f59e0b18;border-radius:10px;padding:8px 10px;color:#f59e0b;font-weight:600;">📌 ${c}: over budget by ${fmt((rSpend[c]||0)-l)}.</div>`).join("")}
+          ${spendArr.length>0?`<div style="background:#88888812;border-radius:10px;padding:8px 10px;color:${sub};">🔝 Biggest spend: <b style="color:${text};">${spendArr[0][0]}</b> at ${fmt(spendArr[0][1])} (${rExp>0?Math.round(spendArr[0][1]/rExp*100):0}% of total).</div>`:""}
+          ${selRM===D.cur&&D.ccDue>0?`<div style="background:#f59e0b18;border-radius:10px;padding:8px 10px;color:#f59e0b;font-weight:600;">💳 ${fmt(D.ccDue)} CC outstanding.</div>`:""}
+          ${selRM===D.cur&&D.toReceive>0?`<div style="background:#3b82f618;border-radius:10px;padding:8px 10px;color:#3b82f6;font-weight:600;">💰 ${fmt(D.toReceive)} to receive.</div>`:""}
+          ${selRM===D.cur&&D.toPay>0?`<div style="background:#a855f718;border-radius:10px;padding:8px 10px;color:#a855f7;font-weight:600;">🔴 ${fmt(D.toPay)} to pay.</div>`:""}
+        </div>
+      `)}
+
+      <!-- All months quick view -->
+      ${cardH(`
+        ${secLabel("ALL MONTHS")}
         ${Object.keys(D.allMonths).sort().reverse().map(m=>{
-          const md=D.allMonths[m];
-          const net=md.income-md.expense;
+          const md=D.allMonths[m]; const net=md.income-md.expense;
           const rate=md.income>0?Math.round(net/md.income*100):0;
-          return `<div onclick="setState('reportMonth','${m}')" style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid ${bdr};cursor:pointer;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span style="font-weight:700;font-size:13px;color:${m===selRM?acc:text};">${monthLabel(m)}</span>
-              ${chip(`${rate>=0?"+":""}${rate}% saved`,rate>20?"#22c55e":rate>0?"#f59e0b":"#ef4444")}
+          const isActive=m===selRM;
+          return `<div onclick="setState('reportMonth','${m}')" style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-radius:12px;margin-bottom:4px;cursor:pointer;background:${isActive?acc+"18":"transparent"};border:1.5px solid ${isActive?acc+"44":"transparent"};">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:700;color:${isActive?acc:text};">${monthLabel(m)}</div>
+              <div style="font-size:10px;color:${sub};margin-top:1px;">${Object.entries(md.cats).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([c])=>c).join(" · ")}</div>
             </div>
-            <div style="display:flex;gap:14px;">
-              <div><div style="font-size:10px;color:${sub};">In</div><div style="font-weight:700;color:#22c55e;font-size:13px;">${fmt(md.income)}</div></div>
-              <div><div style="font-size:10px;color:${sub};">Out</div><div style="font-weight:700;color:#ef4444;font-size:13px;">${fmt(md.expense)}</div></div>
-              <div><div style="font-size:10px;color:${sub};">Net</div><div style="font-weight:700;color:${net>=0?"#22c55e":"#ef4444"};font-size:13px;">${fmt(net)}</div></div>
+            <div style="text-align:right;">
+              <div style="font-size:12px;font-weight:700;color:#ef4444;">-${fmt(md.expense)}</div>
+              <div style="font-size:11px;color:${rate>=0?"#22c55e":"#ef4444"};font-weight:600;">${rate>=0?"+":""} ${rate}% saved</div>
             </div>
-            <div style="font-size:11px;color:${sub};margin-top:4px;">${Object.entries(md.cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,a])=>`${c} ${fmt(a)}`).join(" · ")}</div>
           </div>`;
         }).join("")}
         ${Object.keys(D.allMonths).length===0?`<div style="font-size:12px;color:${sub};">No data yet.</div>`:""}
