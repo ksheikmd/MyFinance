@@ -595,6 +595,16 @@ function render(){
         </div>
       `)}
       ${cardH(`
+        ${secLabel("💾 BACKUP & RESTORE")}
+        <div style="font-size:12px;color:${sub};margin-bottom:12px;">Export saves all your data as a file on your device. Import restores from a previous export.</div>
+        <button onclick="exportData()" style="${btnFull};margin-bottom:8px;">⬇️ Export Backup</button>
+        <label style="display:block;width:100%;">
+          <div style="background:${d?"#1e293b":"#f8fafc"};color:${sub};border:1.5px dashed ${bdr2};border-radius:10px;padding:11px 0;text-align:center;cursor:pointer;font-weight:700;font-size:14px;font-family:inherit;">⬆️ Import Backup</div>
+          <input type="file" accept=".json" onchange="importData(event)" style="display:none;"/>
+        </label>
+        <div id="importMsg" style="font-size:12px;margin-top:8px;text-align:center;"></div>
+      `)}
+      ${cardH(`
         ${secLabel("RESET")}
         <div style="font-size:12px;color:${sub};margin-bottom:10px;">Wipes all transactions, budgets, goals and ledger. Categories & settings kept.</div>
         <button onclick="resetData()" style="${btnFull};background:#ef4444;">Reset All Data</button>
@@ -797,6 +807,36 @@ function payCc(id){
 }
 function deleteCc(id){ state.ccCards=state.ccCards.filter(c=>c.id!==id); S.set("ccCards",state.ccCards); render(); }
 function payInterest(id){ state.interest=state.interest.map(i=>i.id===id?{...i,paid:true}:i); S.set("interest",state.interest); render(); }
+function exportData(){
+  const KEYS=["txns","budgets","goals","ledger","ccCards","interest","zakat","expCats","incCats","userName","currSym","accent","dark","txAccount"];
+  const backup={version:1,exportedAt:new Date().toISOString(),data:{}};
+  KEYS.forEach(k=>{ backup.data[k]=S.get(k); });
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const d=new Date(); const ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  a.href=url; a.download="myfinance-backup-"+ds+".json";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function importData(e){
+  const file=e.target.files[0]; if(!file)return;
+  const msg=document.getElementById("importMsg");
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const backup=JSON.parse(ev.target.result);
+      if(!backup.data) throw new Error("Invalid backup file");
+      const KEYS=["txns","budgets","goals","ledger","ccCards","interest","zakat","expCats","incCats","userName","currSym","accent","dark","txAccount"];
+      KEYS.forEach(k=>{ if(backup.data[k]!==undefined){ S.set(k,backup.data[k]); state[k]=backup.data[k]; }});
+      if(msg){ msg.style.color="#22c55e"; msg.textContent="✅ Backup restored successfully!"; }
+      setTimeout(()=>render(),500);
+    }catch(err){
+      if(msg){ msg.style.color="#ef4444"; msg.textContent="❌ Invalid backup file."; }
+    }
+  };
+  reader.readAsText(file);
+}
 function resetData(){
   if(!confirm("Reset all data? This cannot be undone.")) return;
   state.txns=[];state.budgets={};state.goals=[];state.ledger=[];
