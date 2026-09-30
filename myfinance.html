@@ -79,6 +79,7 @@ let state = {
   historyMonth: "",
   reportMonth:  "",
   reportCat:    "",
+  showAllCats:  false,
 };
 
 function persist(keys){
@@ -167,33 +168,46 @@ function render(){
       const pct=Math.round((D.bSpend[c]||0)/l*100); return {cat:c,limit:l,spent:D.bSpend[c]||0,pct};
     }).filter(x=>x.pct>=75).sort((a,b)=>b.pct-a.pct);
     // Savings ring SVG
-    const SR=36,SCX=44,SCY=44,SSZ=88,SSW=10,SC=2*Math.PI*SR;
-    const ringPct=Math.max(0,Math.min(saveRate,100));
+    const SR=38,SCX=46,SCY=46,SSZ=92,SSW=9,SC=2*Math.PI*SR;
     const ringCol=saveRate>=20?"#22c55e":saveRate>=0?"#f59e0b":"#ef4444";
-    const ringDash=ringPct/100*SC;
+    const ringDash=Math.max(0,Math.min(saveRate,100))/100*SC;
     const ringSVG=`<svg width="${SSZ}" height="${SSZ}" viewBox="0 0 ${SSZ} ${SSZ}">
-      <circle cx="${SCX}" cy="${SCY}" r="${SR}" fill="none" stroke="#88888820" stroke-width="${SSW}"/>
+      <circle cx="${SCX}" cy="${SCY}" r="${SR}" fill="none" stroke="${ringCol}22" stroke-width="${SSW}"/>
       ${D.mInc>0?`<circle cx="${SCX}" cy="${SCY}" r="${SR}" fill="none" stroke="${ringCol}" stroke-width="${SSW}" stroke-dasharray="${ringDash.toFixed(1)} ${(SC-ringDash).toFixed(1)}" stroke-dashoffset="${(SC*0.25).toFixed(1)}" stroke-linecap="round"/>`:""}
-      <text x="${SCX}" y="${SCY-4}" text-anchor="middle" font-size="13" font-weight="bold" fill="${ringCol}" font-family="system-ui">${D.mInc>0?saveRate+"%":"—"}</text>
-      <text x="${SCX}" y="${SCY+9}" text-anchor="middle" font-size="8" fill="${sub}" font-family="system-ui">saved</text>
+      <text x="${SCX}" y="${SCY-3}" text-anchor="middle" font-size="14" font-weight="bold" fill="${ringCol}" font-family="system-ui">${D.mInc>0?saveRate+"%":"—"}</text>
+      <text x="${SCX}" y="${SCY+11}" text-anchor="middle" font-size="8" fill="${sub}" font-family="system-ui">saved</text>
     </svg>`;
     content = `
-      <!-- Hero overview card -->
-      <div style="border-radius:18px;padding:16px;margin-bottom:12px;background:${acc};color:#fff;position:relative;overflow:hidden;">
-        <div style="position:absolute;top:-20px;right:-20px;width:120px;height:120px;border-radius:99px;background:#ffffff12;"></div>
-        <div style="position:absolute;bottom:-30px;right:30px;width:80px;height:80px;border-radius:99px;background:#ffffff08;"></div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <!-- Hero overview card — neutral background, coloured numbers -->
+      <div style="border-radius:18px;padding:18px;margin-bottom:12px;background:${card};border:1.5px solid ${bdr2};">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
           <div>
-            <div style="font-size:11px;opacity:.75;font-weight:600;letter-spacing:.5px;">${monthLabel(D.cur).toUpperCase()}</div>
-            <div style="font-size:26px;font-weight:900;margin:4px 0;color:${D.mNet>=0?"#fff":"#fca5a5"};">${D.mNet>=0?"+":""}${fmt(D.mNet)}</div>
-            <div style="font-size:11px;opacity:.8;">${D.mNet>=0?"Net saved this month":"Deficit this month"}</div>
-            <div style="display:flex;gap:16px;margin-top:12px;">
-              <div><div style="font-size:9px;opacity:.7;">INCOME</div><div style="font-size:14px;font-weight:800;">${fmt(D.mInc)}</div></div>
-              <div><div style="font-size:9px;opacity:.7;">SPENT</div><div style="font-size:14px;font-weight:800;">${fmt(D.mExp)}</div></div>
-            </div>
+            <div style="font-size:11px;color:${sub};font-weight:600;letter-spacing:.5px;text-transform:uppercase;">${monthLabel(D.cur)}</div>
+            <div style="font-size:28px;font-weight:900;color:${D.mNet>=0?"#22c55e":"#ef4444"};line-height:1.1;margin-top:2px;">${D.mNet>=0?"+":""}${fmt(D.mNet)}</div>
+            <div style="font-size:11px;color:${sub};margin-top:2px;">${D.mNet>=0?"net saved this month":"deficit this month"}</div>
           </div>
-          <div style="text-align:center;">${ringSVG.replace(/fill="${sub}"/g,'fill="#ffffffaa"').replace(/fill="${ringCol}"/g,'fill="#fff"')}</div>
+          ${ringSVG}
         </div>
+        <div style="height:1px;background:${bdr2};margin-bottom:14px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+          <div style="padding-right:14px;border-right:1px solid ${bdr2};">
+            <div style="font-size:10px;color:${sub};font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-bottom:2px;">Income</div>
+            <div style="font-size:18px;font-weight:800;color:#22c55e;">${fmt(D.mInc)}</div>
+          </div>
+          <div style="padding-left:14px;">
+            <div style="font-size:10px;color:${sub};font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-bottom:2px;">Spent</div>
+            <div style="font-size:18px;font-weight:800;color:#ef4444;">${fmt(D.mExp)}</div>
+          </div>
+        </div>
+        ${D.mInc>0?`<div style="margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:${sub};margin-bottom:4px;">
+            <span>Spent ${Math.min(spendRate,100)}% of income</span>
+            <span style="color:${ringCol};font-weight:700;">${saveRate>=0?saveRate+"% saved":"over budget"}</span>
+          </div>
+          <div style="background:${bdr2};border-radius:99px;height:5px;overflow:hidden;">
+            <div style="width:${Math.min(spendRate,100)}%;background:${spendRate>100?"#ef4444":spendRate>80?"#f59e0b":acc};height:100%;border-radius:99px;transition:width .3s;"></div>
+          </div>
+        </div>`:""}
       </div>
 
       <!-- Quick stats -->
@@ -667,7 +681,7 @@ function render(){
     content=`
       <!-- Month pill selector -->
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
-        ${rMonths.map(m=>`<button onclick="setState('reportMonth','${m}')" style="flex-shrink:0;padding:6px 14px;border-radius:99px;border:none;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;background:${m===selRM?acc:"#88888818"};color:${m===selRM?"#fff":sub};">${monthLabel(m)}</button>`).join("")}
+        ${rMonths.map(m=>`<button onclick="state.reportMonth='${m}';state.reportCat='';state.showAllCats=false;render();" style="flex-shrink:0;padding:6px 14px;border-radius:99px;border:none;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;background:${m===selRM?acc:"#88888818"};color:${m===selRM?"#fff":sub};">${monthLabel(m)}</button>`).join("")}
       </div>
 
       <!-- Summary hero card -->
@@ -696,7 +710,7 @@ function render(){
       <!-- Spending by category with colour dots — tappable to see transactions -->
       ${spendArr.length>0?cardH(`
         ${secLabel("WHERE DID THE MONEY GO? · tap to expand")}
-        ${spendArr.map(([cat,amt],i)=>{
+        ${(state.showAllCats?spendArr:spendArr.slice(0,5)).map(([cat,amt],i)=>{
           const pct=rExp>0?Math.round(amt/rExp*100):0;
           const col=CCOLS[i%CCOLS.length];
           const isOpen=state.reportCat===cat;
@@ -735,6 +749,9 @@ function render(){
             </div>
           </div>`;
         }).join("")}
+        ${spendArr.length>5?`<button onclick="setState('showAllCats',${!state.showAllCats})" style="width:100%;margin-top:4px;padding:8px 0;border:none;border-radius:10px;background:${bdr2};color:${sub};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
+          ${state.showAllCats?`▲ Show less`:`▼ Show all ${spendArr.length} categories`}
+        </button>`:""}
       `):`<div style="border-radius:14px;padding:14px 16px;margin-bottom:12px;background:${card};text-align:center;color:${sub};font-size:13px;">No expenses for ${monthLabel(selRM)}.</div>`}
 
       <!-- Budget vs Actual -->
