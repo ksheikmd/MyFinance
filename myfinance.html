@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="MyFinance"/>
 <meta name="theme-color" content="#6366f1"/>
+<link rel="manifest" href="manifest.json"/>
 <title>MyFinance</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -560,13 +561,27 @@ function render(){
               </div>
             </div>
             ${c.limit>0?`${bar(pct,"#f59e0b",6)}<div style="font-size:11px;color:${sub};margin-top:2px;margin-bottom:8px;">${fmt(out)} of ${fmt(c.limit)} (${pct}%)</div>`:""}
-            ${c.txns.slice(-4).reverse().map(t=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid ${bdr};"><span style="color:${sub};">${t.date} · ${t.note}</span><span style="font-weight:700;color:#f59e0b;">${fmt(t.amount)}</span></div>`).join("")}
-            ${c.txns.length===0?`<div style="font-size:12px;color:${sub};margin-bottom:6px;">No transactions yet.</div>`:""}
+            ${out>0?`<div style="background:#f59e0b12;border-radius:10px;padding:8px 10px;margin-bottom:10px;">
+              <div style="font-size:11px;color:#f59e0b;font-weight:700;margin-bottom:2px;">💳 OUTSTANDING BALANCE</div>
+              <div style="font-size:20px;font-weight:900;color:#f59e0b;">${fmt(out)}</div>
+              <div style="font-size:10px;color:${sub};margin-top:1px;">Total spent: ${fmt(spent)} · Total paid: ${fmt(paid)}</div>
+            </div>`:""}
+            ${c.txns.length>0?`
+              <div style="font-size:11px;color:${sub};font-weight:600;margin-bottom:4px;">RECENT CHARGES</div>
+              ${c.txns.slice(-5).reverse().map(t=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid ${bdr};"><span style="color:${sub};">${t.date} · ${t.note}</span><span style="font-weight:700;color:#f59e0b;">${fmt(t.amount)}</span></div>`).join("")}
+            `:`<div style="font-size:12px;color:${sub};margin-bottom:6px;">No transactions yet.</div>`}
+            ${c.payments.length>0?`
+              <div style="font-size:11px;color:${sub};font-weight:600;margin-top:8px;margin-bottom:4px;">PAYMENT HISTORY</div>
+              ${c.payments.slice(-3).reverse().map(p=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid ${bdr};"><span style="color:${sub};">${p.date}</span><span style="font-weight:700;color:#22c55e;">-${fmt(p.amount)}</span></div>`).join("")}
+            `:""}
+            ${out>0?`
             <div style="display:flex;gap:8px;margin-top:10px;">
-              <input type="number" min="0" placeholder="Pay amount" value="${pv}" oninput="setCcPay(${c.id},this.value)" style="${inp};flex:1;padding:8px 10px;" onblur="render()"/>
+              <input type="number" min="0" placeholder="Custom amount" value="${pv}" oninput="setCcPay(${c.id},this.value)" style="${inp};flex:1;padding:8px 10px;" onblur="render()"/>
               <button onclick="payCc(${c.id})" style="background:${acc};color:#fff;border:none;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:700;font-family:inherit;">Pay</button>
-              <button onclick="deleteCc(${c.id})" style="${btnMini()}">✕</button>
             </div>
+            <button onclick="payFullCc(${c.id})" style="${btnFull};margin-top:6px;background:#22c55e;">✅ Pay Full ${fmt(out)}</button>
+            `:`<div style="text-align:center;padding:8px 0;font-size:13px;color:#22c55e;font-weight:700;">✅ Card fully cleared!</div>`}
+            <button onclick="deleteCc(${c.id})" style="${btnMini()};width:100%;margin-top:6px;">Remove Card</button>
           `}
         `);
       }).join("")}
@@ -1099,6 +1114,13 @@ function addCard(){
   state.newCardName="";state.newCardLimit="";
   render();
 }
+function payFullCc(id){
+  const c=state.ccCards.find(x=>x.id===id); if(!c)return;
+  const out=Math.max(0,c.txns.reduce((s,t)=>s+t.amount,0)-c.payments.reduce((s,p)=>s+p.amount,0));
+  if(out<=0)return;
+  state.ccCards=state.ccCards.map(x=>x.id===id?{...x,payments:[...x.payments,{id:Date.now(),amount:out,date:today()}]}:x);
+  S.set("ccCards",state.ccCards); render();
+}
 function payCc(id){
   const amt=parseFloat(state.ccPays[id]||0);
   if(!amt) return;
@@ -1149,6 +1171,11 @@ function resetData(){
 
 // ─── INIT ────────────────────────────────────────────────────
 render();
+
+// ─── SERVICE WORKER ──────────────────────────────────────────
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
 </script>
 </body>
 </html>
