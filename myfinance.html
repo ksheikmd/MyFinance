@@ -76,6 +76,8 @@ let state = {
   editTxn:    {},
   editCardId: null,
   editCard:   {},
+  historyMonth: "",
+  reportMonth:  "",
 };
 
 function persist(keys){
@@ -227,28 +229,56 @@ function render(){
           <button onclick="addTxn()" style="${btnFull}">Add</button>
         </div>
       `)}
-      ${secLabel("RECENT")}
-      ${[...state.txns].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,25).map(t=>`
-        <div style="border-radius:14px;padding:10px 14px;margin-bottom:6px;background:${card};">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:600;display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-                ${t.cat}
-                ${t.cc?chip("CC","#f59e0b"):""}
-                ${t.account==="Secondary"?chip("2nd","#3b82f6"):""}
-              </div>
-              <div style="font-size:11px;color:${sub};">${t.date}${t.note?" · "+t.note:""}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-weight:800;font-size:14px;color:${t.type==="income"?"#22c55e":"#ef4444"};">
-                ${t.type==="income"?"+":"-"}${fmt(t.amount)}
-              </span>
-              <button onclick="openEditTxn(${t.id})" style="${btnMini(acc)}">✏️</button>
-            </div>
+      ${(()=>{
+        const months = [...new Set(state.txns.map(t=>getMonth(t.date)))].sort().reverse();
+        const selM = state.historyMonth || (months[0]||D.cur);
+        const filtered = [...state.txns].filter(t=>getMonth(t.date)===selM).sort((a,b)=>b.date.localeCompare(a.date));
+        const totIn  = filtered.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0);
+        const totOut = filtered.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            ${secLabel("TRANSACTIONS")}
+            <select onchange="setState('historyMonth',this.value)" style="${inpSm};width:auto;padding-right:28px;">
+              ${months.map(m=>`<option value="${m}" ${m===selM?"selected":""}>${monthLabel(m)}</option>`).join("")}
+            </select>
           </div>
-        </div>
-      `).join("")}
-      ${state.txns.length===0?`<div style="font-size:13px;color:${sub};text-align:center;padding:20px 0;">No transactions yet. Add your first one above!</div>`:""}
+          ${months.length>0?`<div style="display:flex;gap:10px;margin-bottom:10px;">
+            <div style="flex:1;background:${card};border-radius:12px;padding:8px 12px;text-align:center;">
+              <div style="font-size:10px;color:${sub};">In</div>
+              <div style="font-weight:800;color:#22c55e;font-size:13px;">${fmt(totIn)}</div>
+            </div>
+            <div style="flex:1;background:${card};border-radius:12px;padding:8px 12px;text-align:center;">
+              <div style="font-size:10px;color:${sub};">Out</div>
+              <div style="font-weight:800;color:#ef4444;font-size:13px;">${fmt(totOut)}</div>
+            </div>
+            <div style="flex:1;background:${card};border-radius:12px;padding:8px 12px;text-align:center;">
+              <div style="font-size:10px;color:${sub};">Net</div>
+              <div style="font-weight:800;color:${totIn-totOut>=0?"#22c55e":"#ef4444"};font-size:13px;">${fmt(totIn-totOut)}</div>
+            </div>
+          </div>`:""}
+          ${filtered.map(t=>`
+            <div style="border-radius:14px;padding:10px 14px;margin-bottom:6px;background:${card};">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;font-weight:600;display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                    ${t.cat}
+                    ${t.cc?chip("CC","#f59e0b"):""}
+                    ${t.account==="Secondary"?chip("2nd","#3b82f6"):""}
+                  </div>
+                  <div style="font-size:11px;color:${sub};">${t.date}${t.note?" · "+t.note:""}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span style="font-weight:800;font-size:14px;color:${t.type==="income"?"#22c55e":"#ef4444"};">
+                    ${t.type==="income"?"+":"-"}${fmt(t.amount)}
+                  </span>
+                  <button onclick="openEditTxn(${t.id})" style="${btnMini(acc)}">✏️</button>
+                </div>
+              </div>
+            </div>
+          `).join("")}
+          ${filtered.length===0?`<div style="font-size:13px;color:${sub};text-align:center;padding:20px 0;">${state.txns.length===0?"No transactions yet. Add your first one above!":"No transactions for this month."}</div>`:""}
+        `;
+      })()}
     `;
   }
 
@@ -477,26 +507,44 @@ function render(){
   }
 
   else if(state.tab==="Reports"){
+    const rMonths = [...new Set(state.txns.map(t=>getMonth(t.date)))].sort().reverse();
+    const selRM = state.reportMonth || (rMonths[0]||D.cur);
+    const rTxns = state.txns.filter(t=>getMonth(t.date)===selRM);
+    const rInc  = rTxns.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0);
+    const rExp  = rTxns.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+    const rNet  = rInc-rExp;
+    const rSpend={};
+    rTxns.filter(t=>t.type==="expense").forEach(t=>{ rSpend[t.cat]=(rSpend[t.cat]||0)+t.amount; });
     content = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;padding:0 2px;">
+        ${secLabel("MONTHLY REPORT")}
+        <select onchange="setState('reportMonth',this.value)" style="${inpSm};width:auto;padding-right:28px;">
+          ${rMonths.map(m=>`<option value="${m}" ${m===selRM?"selected":""}>${monthLabel(m)}</option>`).join("")}
+        </select>
+      </div>
       ${cardH(`
-        ${secLabel("INSIGHTS · "+monthLabel(D.cur))}
+        <div style="display:flex;gap:10px;margin-bottom:12px;">
+          <div style="flex:1;text-align:center;"><div style="font-size:10px;color:${sub};">Income</div><div style="font-weight:800;color:#22c55e;font-size:15px;">${fmt(rInc)}</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:10px;color:${sub};">Expenses</div><div style="font-weight:800;color:#ef4444;font-size:15px;">${fmt(rExp)}</div></div>
+          <div style="flex:1;text-align:center;"><div style="font-size:10px;color:${sub};">Net</div><div style="font-weight:800;color:${rNet>=0?"#22c55e":"#ef4444"};font-size:15px;">${fmt(rNet)}</div></div>
+        </div>
+        ${secLabel("INSIGHTS")}
         <div style="font-size:13px;line-height:2;">
-          ${D.mInc===0?`<div style="color:${sub};">📌 No income logged this month yet.</div>`:""}
-          ${D.mInc>0&&D.mExp<=D.mInc?`<div style="color:#22c55e;">✅ Saved ${fmt(D.mNet)} (${Math.round(D.mNet/D.mInc*100)}% of income).</div>`:""}
-          ${D.mInc>0&&D.mExp>D.mInc?`<div style="color:#ef4444;">⚠️ Spent ${fmt(D.mExp-D.mInc)} more than earned.</div>`:""}
-          ${Object.entries(state.budgets).filter(([c,l])=>l>0&&(D.bSpend[c]||0)>l).map(([c])=>`<div style="color:#f59e0b;">⚠️ ${c} over budget.</div>`).join("")}
-          ${D.ccDue>0?`<div style="color:#f59e0b;">💳 ${fmt(D.ccDue)} CC outstanding.</div>`:""}
-          ${D.toReceive>0?`<div style="color:#3b82f6;">💰 ${fmt(D.toReceive)} to receive.</div>`:""}
-          ${D.toPay>0?`<div style="color:#a855f7;">🔴 ${fmt(D.toPay)} to pay.</div>`:""}
-          ${state.goals.filter(g=>g.isChit&&g.monthlyAmt).map(g=>`<div style="color:${acc};">🏦 Chit ${g.name}: ${fmt(g.monthlyAmt)}/mo.</div>`).join("")}
-          ${state.interest.filter(i=>!i.paid).length>0?`<div style="color:#22c55e;">🏦 Unpaid interest — check Cards tab.</div>`:""}
-          ${D.mInc===0&&D.mExp===0?`<div style="color:${sub};">Add transactions to see insights.</div>`:""}
+          ${rInc===0&&rExp===0?`<div style="color:${sub};">No transactions for this month.</div>`:""}
+          ${rInc===0&&rExp>0?`<div style="color:${sub};">📌 No income logged this month.</div>`:""}
+          ${rInc>0&&rExp<=rInc?`<div style="color:#22c55e;">✅ Saved ${fmt(rNet)} (${Math.round(rNet/rInc*100)}% of income).</div>`:""}
+          ${rInc>0&&rExp>rInc?`<div style="color:#ef4444;">⚠️ Spent ${fmt(rExp-rInc)} more than earned.</div>`:""}
+          ${Object.entries(state.budgets).filter(([c,l])=>l>0&&(rSpend[c]||0)>l).map(([c])=>`<div style="color:#f59e0b;">⚠️ ${c} over budget.</div>`).join("")}
+          ${selRM===D.cur&&D.ccDue>0?`<div style="color:#f59e0b;">💳 ${fmt(D.ccDue)} CC outstanding.</div>`:""}
+          ${selRM===D.cur&&D.toReceive>0?`<div style="color:#3b82f6;">💰 ${fmt(D.toReceive)} to receive.</div>`:""}
+          ${selRM===D.cur&&D.toPay>0?`<div style="color:#a855f7;">🔴 ${fmt(D.toPay)} to pay.</div>`:""}
+          ${selRM===D.cur&&state.interest.filter(i=>!i.paid).length>0?`<div style="color:#22c55e;">🏦 Unpaid interest — check Cards tab.</div>`:""}
         </div>
       `)}
       ${cardH(`
-        ${secLabel("BUDGET GAP")}
+        ${secLabel("BUDGET vs ACTUAL")}
         ${Object.entries(state.budgets).filter(([,l])=>l>0).map(([cat,limit])=>{
-          const spent=D.bSpend[cat]||0;
+          const spent=rSpend[cat]||0;
           const pct=Math.round(spent/limit*100);
           return `<div style="margin-bottom:10px;">
             <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">
@@ -504,19 +552,34 @@ function render(){
               <span style="color:${pct>100?"#ef4444":"#22c55e"};font-weight:700;">${pct>100?`+${fmt(spent-limit)} over`:`${fmt(limit-spent)} left`}</span>
             </div>
             ${bar(pct,"",5)}
+            <div style="font-size:10px;color:${sub};margin-top:1px;">Spent ${fmt(spent)} of ${fmt(limit)}</div>
           </div>`;
         }).join("")}
         ${Object.keys(state.budgets).filter(k=>state.budgets[k]>0).length===0?`<div style="font-size:12px;color:${sub};">Set limits in Budget tab first.</div>`:""}
       `)}
       ${cardH(`
-        ${secLabel("MONTH-BY-MONTH")}
-        ${Object.keys(D.allMonths).sort().reverse().slice(0,6).map(m=>{
+        ${secLabel("SPENDING BREAKDOWN")}
+        ${Object.entries(rSpend).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>{
+          const pct=rExp>0?Math.round(amt/rExp*100):0;
+          return `<div style="margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">
+              <span style="font-weight:600;">${cat}</span>
+              <span style="color:${text};font-weight:700;">${fmt(amt)} <span style="color:${sub};font-weight:400;">(${pct}%)</span></span>
+            </div>
+            ${bar(pct,"",4)}
+          </div>`;
+        }).join("")}
+        ${Object.keys(rSpend).length===0?`<div style="font-size:12px;color:${sub};">No expenses for this month.</div>`:""}
+      `)}
+      ${cardH(`
+        ${secLabel("ALL MONTHS SUMMARY")}
+        ${Object.keys(D.allMonths).sort().reverse().map(m=>{
           const md=D.allMonths[m];
           const net=md.income-md.expense;
           const rate=md.income>0?Math.round(net/md.income*100):0;
-          return `<div style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid ${bdr};">
+          return `<div onclick="setState('reportMonth','${m}')" style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid ${bdr};cursor:pointer;">
             <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span style="font-weight:700;font-size:13px;">${monthLabel(m)}</span>
+              <span style="font-weight:700;font-size:13px;color:${m===selRM?acc:text};">${monthLabel(m)}</span>
               ${chip(`${rate>=0?"+":""}${rate}% saved`,rate>20?"#22c55e":rate>0?"#f59e0b":"#ef4444")}
             </div>
             <div style="display:flex;gap:14px;">
