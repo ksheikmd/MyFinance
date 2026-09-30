@@ -80,6 +80,7 @@ let state = {
   reportMonth:  "",
   reportCat:    "",
   showAllCats:  false,
+  showAllTxns:  false,
 };
 
 function persist(keys){
@@ -364,7 +365,7 @@ function render(){
         return `
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             ${secLabel("TRANSACTIONS")}
-            <select onchange="setState('historyMonth',this.value)" style="${inpSm};width:auto;padding-right:28px;">
+            <select onchange="state.historyMonth=this.value;state.showAllTxns=false;render();" style="${inpSm};width:auto;padding-right:28px;">
               ${months.map(m=>`<option value="${m}" ${m===selM?"selected":""}>${monthLabel(m)}</option>`).join("")}
             </select>
           </div>
@@ -382,7 +383,7 @@ function render(){
               <div style="font-weight:800;color:${totIn-totOut>=0?"#22c55e":"#ef4444"};font-size:13px;">${fmt(totIn-totOut)}</div>
             </div>
           </div>`:""}
-          ${filtered.map(t=>`
+          ${(state.showAllTxns?filtered:filtered.slice(0,10)).map(t=>`
             <div style="border-radius:14px;padding:10px 14px;margin-bottom:6px;background:${card};">
               <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div style="flex:1;min-width:0;">
@@ -402,6 +403,9 @@ function render(){
               </div>
             </div>
           `).join("")}
+          ${filtered.length>10?`<button onclick="setState('showAllTxns',${!state.showAllTxns})" style="width:100%;padding:9px 0;border:none;border-radius:12px;background:${bdr2};color:${sub};font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:6px;">
+            ${state.showAllTxns?`▲ Show less`:`▼ Show all ${filtered.length} entries`}
+          </button>`:""}
           ${filtered.length===0?`<div style="font-size:13px;color:${sub};text-align:center;padding:20px 0;">${state.txns.length===0?"No transactions yet. Add your first one above!":"No transactions for this month."}</div>`:""}
         `;
       })()}
